@@ -16,6 +16,7 @@
 #include "versionresilienthashcode.h"
 #include "typehashingalgorithms.h"
 #include "method.hpp"
+#include "typestring.h"
 
 using namespace NativeFormat;
 
@@ -399,7 +400,7 @@ static void LogR2r(const char *msg, PEFile *pFile)
     fflush(r2rLogFile);
 }
 
-#define DoLog(msg) if (s_r2rLogFile != NULL) LogR2r(msg, pFile)
+#define DoLog(msg, pModule) if (s_r2rLogFile != NULL) LogR2r(msg, pModule->GetFile())
 
 // Try to acquire an R2R image for exclusive use by a particular module.
 // Returns true if successful. Returns false if the image is already been used
@@ -459,7 +460,7 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
     if (!IsReadyToRunEnabled())
     {
         // Log message is ignored in this case.
-        DoLog(NULL);
+        DoLog(NULL, pModule);
         return NULL;
     }
 
@@ -471,26 +472,26 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
 
     if (!pFile->HasLoadedIL())
     {
-        DoLog("Ready to Run disabled - no loaded IL image");
+        DoLog("Ready to Run disabled - no loaded IL image", pModule);
         return NULL;
     }
 
     PEImageLayout * pLayout = pFile->GetLoadedIL();
     if (!pLayout->HasReadyToRunHeader())
     {
-        DoLog("Ready to Run header not found");
+        DoLog("Ready to Run header not found", pModule);
         return NULL;
     }
 
     if (CORProfilerDisableAllNGenImages() || CORProfilerUseProfileImages())
     {
-        DoLog("Ready to Run disabled - profiler disabled native images");
+        DoLog("Ready to Run disabled - profiler disabled native images", pModule);
         return NULL;
     }
 
     if (g_pConfig->ExcludeReadyToRun(pModule->GetSimpleName()))
     {
-        DoLog("Ready to Run disabled - module on exclusion list");
+        DoLog("Ready to Run disabled - module on exclusion list", pModule);
         return NULL;
     }
 
@@ -498,7 +499,7 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
     // Ignore ReadyToRun during NGen
     if (IsCompilationProcess() && !IsNgenPDBCompilationProcess())
     {
-        DoLog("Ready to Run disabled - compilation process");
+        DoLog("Ready to Run disabled - compilation process", pModule);
         return NULL;
     }
 #endif
@@ -513,7 +514,7 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
     // The file must have been loaded using LoadLibrary
     if (!pLayout->IsRelocated())
     {
-        DoLog("Ready to Run disabled - module not loaded for execution");
+        DoLog("Ready to Run disabled - module not loaded for execution", pModule);
         return NULL;
     }
 #endif
@@ -523,20 +524,20 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
     // Ignore the content if the image major version is higher than the major version currently supported by the runtime
     if (pHeader->MajorVersion > READYTORUN_MAJOR_VERSION)
     {
-        DoLog("Ready to Run disabled - unsupported header version");
+        DoLog("Ready to Run disabled - unsupported header version", pModule);
         return NULL;
     }
 
     if (!AcquireImage(pModule, pLayout, pHeader))
     {
-        DoLog("Ready to Run disabled - module already loaded in another AppDomain");
+        DoLog("Ready to Run disabled - module already loaded in another AppDomain", pModule);
         return NULL;
     }
 
     LoaderHeap *pHeap = pModule->GetLoaderAllocator()->GetHighFrequencyHeap();
     void * pMemory = pamTracker->Track(pHeap->AllocMem((S_SIZE_T)sizeof(ReadyToRunInfo)));
 
-    DoLog("Ready to Run initialized successfully");
+    DoLog("Ready to Run initialized successfully", pModule);
 
     return new (pMemory) ReadyToRunInfo(pModule, pLayout, pHeader, pamTracker);
 }
@@ -789,6 +790,15 @@ PCODE ReadyToRunInfo::GetEntryPoint(MethodDesc * pMD, PrepareCodeConfig* pConfig
         g_pDebugInterface->JITComplete(pMD, pEntryPoint);
     }
 
+    if (s_r2rLogFile != nullptr)
+    {
+        SString methodEntryPointName(W("Found entrypoint for method %s"));
+        TypeString::AppendMethodDebug(methodEntryPointName, pMD);
+        StackScratchBuffer scratch;
+        const UTF8 *utf8 = methodEntryPointName.GetUTF8(scratch);
+        DoLog(utf8, m_pModule);
+    }
+    
     return pEntryPoint;
 }
 
