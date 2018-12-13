@@ -466,7 +466,7 @@ PTR_ReadyToRunInfo ReadyToRunInfo::Initialize(Module * pModule, AllocMemTracker 
 
     if (pModule->IsCollectible())
     {
-        DoLog("Ready to Run disabled - collectible module");
+        DoLog("Ready to Run disabled - collectible module", pModule);
         return NULL;
     }
 
