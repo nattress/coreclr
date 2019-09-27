@@ -183,9 +183,10 @@ namespace Internal.JitInterface
 #if SUPPORT_JIT
                         _lastException.Throw();
 #else
-                        if (_lastException.SourceException is TypeSystemException)
+                        if (_lastException.SourceException is TypeSystemException || _lastException.SourceException is BadImageFormatException)
                         {
                             // Type system exceptions can be turned into code that throws the exception at runtime.
+                            // Catch BadImageFormatException to work around a linker bug for single-exe prototype.
                             _lastException.Throw();
                         }
 #if READYTORUN

@@ -271,9 +271,10 @@ namespace ILCompiler
                 {
                     _corInfo.CompileMethod(methodCodeNodeNeedingCode);
                 }
-                catch (TypeSystemException ex)
+                catch (Exception ex) when (ex is TypeSystemException || ex is BadImageFormatException)
                 {
                     // If compilation fails, don't emit code for this method. It will be Jitted at runtime
+                    // Catch BadImageFormatException to work around a linker bug for single-exe prototype.
                     Logger.Writer.WriteLine($"Warning: Method `{ResilientNameComputation(method)}` was not compiled because: {ex.Message}");
                 }
                 catch (RequiresRuntimeJitException ex)

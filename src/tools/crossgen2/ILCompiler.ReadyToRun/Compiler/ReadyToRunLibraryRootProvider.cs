@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+
 using Internal.TypeSystem.Ecma;
 using Internal.TypeSystem;
 
@@ -115,10 +117,12 @@ namespace ILCompiler
                     CheckCanGenerateMethod(method);
                     rootProvider.AddCompilationRoot(method, reason);
                 }
-                catch (TypeSystemException)
+                catch (Exception ex) when (ex is TypeSystemException || ex is BadImageFormatException)
                 {
                     // Individual methods can fail to load types referenced in their signatures.
                     // Skip them in library mode since they're not going to be callable.
+
+                    // Catch BadImageFormatException to work around a linker bug for single-exe prototype.
                     continue;
                 }
             }
